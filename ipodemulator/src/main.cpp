@@ -44,7 +44,7 @@ void setup() {
   // ble_server_init();
 
   // Start A2DP Sink audio
-  bluetoothAudio.start();
+  bluetoothAudio.begin();
 }
 
 void loop() {
