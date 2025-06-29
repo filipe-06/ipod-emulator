@@ -1,21 +1,43 @@
 #include "BluetoothAudio.h"
+#include "Debug.h"
 
 static BluetoothAudio *self = nullptr;
 
-void BluetoothAudio::begin() {
-    self = this;
-
-    a2dp_sink.set_avrc_metadata_callback(avrc_metadata_callback);
-    a2dp_sink.set_avrc_connection_state_callback(avrc_connection_state_callback, this);
-    a2dp_sink.set_avrc_playback_state_callback(avrc_playback_callback, this);
-
-    a2dp_sink.start("ESP32-iPod-Emu");
+static void avrc_metadata_callback(uint8_t id, const uint8_t *data) {
+    if (!self) return;
+    String value = (const char *)data;
+    switch (id) {
+        case ESP_AVRC_MD_ATTR_TITLE:  self->currentMetadata.title = value; break;
+        case ESP_AVRC_MD_ATTR_ARTIST: self->currentMetadata.artist = value; break;
+        case ESP_AVRC_MD_ATTR_ALBUM:  self->currentMetadata.album = value; break;
+    }
 }
 
-void BluetoothAudio::setMetadata(const String &title, const String &artist, const String &album) {
-    currentMetadata.title = title;
-    currentMetadata.artist = artist;
-    currentMetadata.album = album;
+static void avrc_connection_state_callback(bool connected) {
+    if (!self) return;
+    self->connected = connected;
+    Debug::println(connected ? "AVRCP connected" : "AVRCP disconnected");
+}
+
+static void avrc_rn_playstatus_callback(uint8_t event_id, uint8_t *p_data, uint32_t data_len) {
+    if (!self || event_id != ESP_AVRC_RN_PLAY_STATUS_CHANGE || data_len == 0) return;
+    uint8_t status = p_data[0];
+    self->playing = (status == ESP_AVRC_PLAY_STATUS_PLAYING);
+    Debug::printf("Play status: %d\n", status);
+}
+
+void BluetoothAudio::begin() {
+    self = this;
+    a2dp_sink.set_avrc_metadata_callback(avrc_metadata_callback);
+    a2dp_sink.set_avrc_connection_state_callback(avrc_connection_state_callback);
+    a2dp_sink.set_avrc_rn_playstatus_callback(avrc_rn_playstatus_callback);
+
+    // Use AudioTools I2S backend for external DAC on pins 25/26/21
+    AudioStream *i2s = new I2SStream();  
+    a2dp_sink.set_output(*i2s);
+    a2dp_sink.start("ESP32-iPod-Emu");
+
+    Debug::println("BluetoothAudio A2DP+AVRCP started");
 }
 
 Metadata BluetoothAudio::getMetadata() const {
@@ -28,26 +50,4 @@ bool BluetoothAudio::isConnected() const {
 
 bool BluetoothAudio::isPlaying() const {
     return playing;
-}
-
-void BluetoothAudio::avrc_metadata_callback(uint8_t id, const uint8_t *data) {
-    if (!self) return;
-    String value = String((const char *)data);
-    switch (id) {
-        case ESP_AVRC_MD_ATTR_TITLE:  self->currentMetadata.title  = value; break;
-        case ESP_AVRC_MD_ATTR_ARTIST: self->currentMetadata.artist = value; break;
-        case ESP_AVRC_MD_ATTR_ALBUM:  self->currentMetadata.album  = value; break;
-    }
-}
-
-void BluetoothAudio::avrc_connection_state_callback(esp_a2d_connection_state_t state, void *user_data) {
-    BluetoothAudio *instance = static_cast<BluetoothAudio *>(user_data);
-    if (!instance) return;
-    instance->connected = (state == ESP_A2D_CONNECTION_STATE_CONNECTED);
-}
-
-void BluetoothAudio::avrc_playback_callback(esp_avrc_playback_stat_t state, void *user_data) {
-    BluetoothAudio *instance = static_cast<BluetoothAudio *>(user_data);
-    if (!instance) return;
-    instance->playing = (state == ESP_AVRC_PLAYBACK_PLAYING);
 }
