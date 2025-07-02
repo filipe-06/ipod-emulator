@@ -3,7 +3,6 @@
 
 #include <Arduino.h>
 #include <BluetoothA2DPSink.h>
-#include <BluetoothA2DPSource.h>
 
 struct Metadata {
     String title;
