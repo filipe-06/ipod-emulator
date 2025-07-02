@@ -1,7 +1,5 @@
-#ifndef BLUETOOTH_AUDIO_H
-#define BLUETOOTH_AUDIO_H
+#pragma once
 
-#include <Arduino.h>
 #include <BluetoothA2DPSink.h>
 
 struct Metadata {
@@ -13,17 +11,8 @@ struct Metadata {
 class BluetoothAudio {
 public:
     void begin();
-
-    Metadata getMetadata() const { return currentMetadata; }
-    bool isConnected() const { return connected; }
-    bool isPlaying() const { return playing; }
-
     Metadata currentMetadata;
-    bool connected = false;
-    bool playing = false;
 
 private:
-    BluetoothA2DPSink a2dp_sink;
+    static void avrc_metadata_callback(uint8_t id, const uint8_t* data);
 };
-
-#endif // BLUETOOTH_AUDIO_H
